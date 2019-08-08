@@ -1,5 +1,8 @@
 package inesloader;
 
+import inesloader.SMB3Symbols;
+import inesloader.SMB3Symbols.Symbol;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -20,19 +23,42 @@ import ghidra.program.model.data.PointerDataType;
 import ghidra.program.model.lang.LanguageCompilerSpecPair;
 import ghidra.program.model.listing.Data;
 import ghidra.program.model.listing.Program;
+import ghidra.program.model.mem.Memory;
 import ghidra.program.model.mem.MemoryBlock;
+import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.util.CodeUnitInsertionException;
 import ghidra.util.Msg;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 
 public class SMB3INESLoader extends AbstractLibrarySupportLoader {
-    private static class SMB3RamSegment {
+    /*
+    private static class Bank {
+        int bank;
+        FlatProgramAPI api;
+        private Bank(FlatProgramAPI api, int bank) {
+            this.bank = bank;
+            this.api = api;
+        }
+        private Address addr(int addr) {
+            short a16 = (short)addr;
+            String s = String.format("bank%03d::%04x", this.bank, a16);
+            try {
+                return this.api.toAddr(s);
+            } catch(Exception e) {
+                Msg.error(this, String.format("Failed to create bank address from bank %03d and address 0x%04X", this.bank, a16), e);
+                return null;
+            }
+        }
+    }
+    */
+
+    private static class NESMemorySegment {
         String name;
         int addr;
         int size;
 
-        private SMB3RamSegment(String name, int addr, int size) {
+        private NESMemorySegment(String name, int addr, int size) {
             this.name = name;
             this.addr = addr;
             this.size = size;
@@ -41,7 +67,7 @@ public class SMB3INESLoader extends AbstractLibrarySupportLoader {
 
     private static final int INES_MAGIC = 0x1a53454e;   // 'N' 'E' 'S' '\x1A'
     private static final int PRG_BANK_SIZE = 0x2000;    // Banks are 8 KB
-    private static final int SMB3_BANK_VAS[] = {
+    private static final int[] SMB3_BANKS = {
         0xC000, //  Bank 000
         0xA000, //  Bank 001
         0xA000, //  Bank 002
@@ -76,13 +102,16 @@ public class SMB3INESLoader extends AbstractLibrarySupportLoader {
         0xE000, //  Bank 031
     };
 
-    private static final SMB3RamSegment[] SMB3_RAM_SEGMENTS = {
-        new SMB3RamSegment("SPRITE_RAM", 0x200, 0x100),
-        new SMB3RamSegment("RAM", 0x300, 0x500),
-        new SMB3RamSegment("MMC3_SRAM", 0x6000, 0x2000),
+    private static final NESMemorySegment[] SMB3_SEGMENTS = {
+        new NESMemorySegment("SPRITE_RAM", 0x200, 0x100),
+        new NESMemorySegment("RAM", 0x300, 0x500),
+        new NESMemorySegment("PPU_REGS", 0x2000, 0x8),
+        new NESMemorySegment("2A03_REGS", 0x4000, 0x18),
+        new NESMemorySegment("MMC3_SRAM", 0x6000, 0x2000),
     };
 
     private INESHeader header;
+    private FlatProgramAPI api;
 
     @Override
     public String getName() {
@@ -101,37 +130,86 @@ public class SMB3INESLoader extends AbstractLibrarySupportLoader {
     protected void load(ByteProvider provider, LoadSpec loadSpec, List<Option> options, Program program,
             MemoryConflictHandler handler, TaskMonitor monitor, MessageLog log) throws CancelledException, IOException {
         BinaryReader reader = new BinaryReader(provider, true);
-        FlatProgramAPI api = new FlatProgramAPI(program, monitor);
 
-        header = new INESHeader(reader);
+        this.api = new FlatProgramAPI(program, monitor);
+        this.header = new INESHeader(reader);
 
         /**
          * INES header specifies number of 16 KB units, but each bank
          * is only 8 KB, so we have to loop through double.
          */
-        for (int i = 0; i < header.cPRGROM16KbUnits*2; i++) {
-            InputStream input = provider.getInputStream(header.toDataType().getLength() + (i * PRG_BANK_SIZE));
+        for (int i = 0; i < this.header.cPRGROM16KbUnits*2; i++) {
+            InputStream input = provider.getInputStream(this.header.toDataType().getLength() + (i * PRG_BANK_SIZE));
             String segName = String.format("bank%03d", i);
 
-            createSegment(api, input, segName, api.toAddr(SMB3_BANK_VAS[i]), PRG_BANK_SIZE, true, false, true, true);
+            boolean overlay = (i < 30);
+            createSegment(input, segName, this.api.toAddr(SMB3_BANKS[i]), PRG_BANK_SIZE, true, false, true, overlay);
         }
 
         /**
-         * SMB3 RAM segments
+         * SMB3 RAM & PPU segments
          */
-        for(SMB3RamSegment seg : SMB3_RAM_SEGMENTS) {
-            createUninitializedSegment(api, seg.name, api.toAddr(seg.addr), seg.size, true, true, true, false);
+        for(NESMemorySegment seg : SMB3_SEGMENTS) {
+            createUninitializedSegment(seg.name, this.api.toAddr(seg.addr), seg.size, true, true, true, false);
         }
 
-        // TODO: How to create pointers/data/symbols within individual overlay blocks?
-        // This doesn't seem to work. Perhaps using an AddressSpace somehow? Are overlay blocks even what we want?
-        // This currently gives a CodeUnitInsertionException saying there's insufficient memory at 0xFFFC for a 2-byte pointer.
-        //createPointer(program, api.toAddr(0xFFFC));
+        loadEntry();
+        labelSymbols();
     }
 
-    private void createSegment(FlatProgramAPI api, InputStream input, String name, Address start, long length, boolean read, boolean write, boolean exec, boolean overlay) {
+    private void labelSymbols() {
+        FlatProgramAPI api = this.api;
+        for (Symbol s : SMB3Symbols.IO_SYMS) {
+            try {
+                api.createLabel(api.toAddr(s.addr), s.name, true);
+            } catch (Exception e) {
+                Msg.error(this, e.getMessage());
+            }
+        }
+    }
+
+    private void loadEntry() {
+        Address IntReset = makeVectorTable();
+        if (IntReset == null) {
+            return;
+        }
+        this.api.addEntryPoint(IntReset);
+    }
+
+    private Address makeVectorTable() {
+        FlatProgramAPI api = this.api;
+        int pIntNMI   = 0xfffa;
+        int pIntReset = 0xfffc;
+        int pIntIRQ   = 0xfffe;
+        Address IntReset = null; /* We'll return this. */
+
         try {
-            MemoryBlock blk = api.createMemoryBlock(name, start, input, length, overlay);
+            int nmi = api.getShort(api.toAddr(pIntNMI)) & 0xffff;
+            int reset = api.getShort(api.toAddr(pIntReset)) & 0xffff;
+            int irq = api.getShort(api.toAddr(pIntIRQ)) & 0xffff;
+            IntReset = api.toAddr(reset);
+
+            api.createLabel(api.toAddr(pIntNMI), "Vector_Table", true);
+            createPointer(api.toAddr(pIntNMI));
+            createPointer(api.toAddr(pIntReset));
+            createPointer(api.toAddr(pIntIRQ));
+
+            api.createFunction(api.toAddr(nmi), "IntNMI");
+            api.disassemble(api.toAddr(nmi));
+            api.createFunction(IntReset, "IntReset");
+            api.disassemble(IntReset);
+            api.createFunction(api.toAddr(irq), "IntIRQ");
+            api.disassemble(api.toAddr(irq));
+        } catch(Exception e) {
+            Msg.error(this, "Failed to create VectorTable", e);
+            return null;
+        }
+        return IntReset;
+    }
+
+    private void createSegment(InputStream input, String name, Address start, long length, boolean read, boolean write, boolean exec, boolean overlay) {
+        try {
+            MemoryBlock blk = this.api.createMemoryBlock(name, start, input, length, overlay);
             blk.setRead(read);
             blk.setWrite(write);
             blk.setExecute(exec);
@@ -140,8 +218,8 @@ public class SMB3INESLoader extends AbstractLibrarySupportLoader {
         }
     }
 
-    private void createUninitializedSegment(FlatProgramAPI api, String name, Address start, long length, boolean read, boolean write, boolean exec, boolean overlay) {
-        Program program = api.getCurrentProgram();
+    private void createUninitializedSegment(String name, Address start, long length, boolean read, boolean write, boolean exec, boolean overlay) {
+        Program program = this.api.getCurrentProgram();
         try {
             MemoryBlock blk = program.getMemory().createUninitializedBlock(name, start, length, overlay);
             blk.setRead(read);
@@ -152,18 +230,13 @@ public class SMB3INESLoader extends AbstractLibrarySupportLoader {
         }
     }
 
-    private int createPointer(Program program, Address addr) {
-        Data d = program.getListing().getDataAt(addr);
-        if (d == null) {
-            try {
-                d = program.getListing().createData(addr, PointerDataType.dataType, 2);
-            } catch (CodeUnitInsertionException | DataTypeConflictException e) {
-                Msg.error(this, String.format("Failed to create pointer at 0x%X", addr.getOffset()), e);
-            }
+    private int createPointer(Address addr) {
+        FlatProgramAPI api = this.api;
+        try {
+            api.createData(addr, PointerDataType.dataType);
+        } catch (Exception e) {
+            Msg.error(this, String.format("Failed to create pointer at 0x%X", addr.getOffset()), e);
         }
-        if (d == null) {
-            return 0;
-        }
-        return d.getLength();
+        return 0;
     }
 }
