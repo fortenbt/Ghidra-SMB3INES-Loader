@@ -166,6 +166,34 @@ public class SMB3INESLoader extends AbstractLibrarySupportLoader {
                 Msg.error(this, e.getMessage());
             }
         }
+        for (Symbol s : SMB3Symbols.ZERO_PAGE_COMMON_SYMS) {
+            try {
+                api.createLabel(api.toAddr(s.addr), s.name, true);
+            } catch (Exception e) {
+                Msg.error(this, e.getMessage());
+            }
+        }
+        for (Symbol s : SMB3Symbols.LOW_STACK_SYMS) {
+            try {
+                api.createLabel(api.toAddr(s.addr), s.name, true);
+            } catch (Exception e) {
+                Msg.error(this, e.getMessage());
+            }
+        }
+        for (Symbol s : SMB3Symbols.SPRITE_SYMS) {
+            try {
+                api.createLabel(api.toAddr(s.addr), s.name, true);
+            } catch (Exception e) {
+                Msg.error(this, e.getMessage());
+            }
+        }
+        for (Symbol s : SMB3Symbols.RAM_SYMS) {
+            try {
+                api.createLabel(api.toAddr(s.addr), s.name, true);
+            } catch (Exception e) {
+                Msg.error(this, e.getMessage());
+            }
+        }
     }
 
     private void loadEntry() {
