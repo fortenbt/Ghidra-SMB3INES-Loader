@@ -32,27 +32,6 @@ import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 
 public class SMB3INESLoader extends AbstractLibrarySupportLoader {
-    /*
-    private static class Bank {
-        int bank;
-        FlatProgramAPI api;
-        private Bank(FlatProgramAPI api, int bank) {
-            this.bank = bank;
-            this.api = api;
-        }
-        private Address addr(int addr) {
-            short a16 = (short)addr;
-            String s = String.format("bank%03d::%04x", this.bank, a16);
-            try {
-                return this.api.toAddr(s);
-            } catch(Exception e) {
-                Msg.error(this, String.format("Failed to create bank address from bank %03d and address 0x%04X", this.bank, a16), e);
-                return null;
-            }
-        }
-    }
-    */
-
     private static class NESMemorySegment {
         String name;
         int addr;
