@@ -138,11 +138,15 @@ public class SMB3INESLoader extends AbstractLibrarySupportLoader {
 
     private void labelSymbols() {
         FlatProgramAPI api = this.api;
-        for (Symbol s : SMB3Symbols.IO_SYMS) {
-            try {
-                api.createLabel(api.toAddr(s.addr), s.name, true);
-            } catch (Exception e) {
-                Msg.error(this, e.getMessage());
+        for (Symbol[] arr : SMB3Symbols.SMB3_MANUAL_SYMS) {
+            for (Symbol s : arr) {
+                try {
+                    api.createLabel(api.toAddr(s.addr), s.name, true);
+                } catch (Exception e) {
+                    Msg.error(this, e.getMessage());
+                }
+            }
+        }
             }
         }
     }

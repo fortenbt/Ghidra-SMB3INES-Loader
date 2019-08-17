@@ -4,13 +4,13 @@ public class SMB3Symbols {
     public static class Symbol {
         String name;
         int addr;
-        private Symbol(String name, int addr) {
+        public Symbol(String name, int addr) {
             this.name = name;
             this.addr = addr;
         }
     }
 
-    public static final Symbol[] IO_SYMS = {
+    private static final Symbol[] IO_SYMS = {
         new Symbol("PPU_CTL1", 0x2000),
         new Symbol("PPU_CTL2", 0x2001),
         new Symbol("PPU_STAT", 0x2002),
@@ -50,7 +50,7 @@ public class SMB3Symbols {
         new Symbol("apu_unused_2", 0x400D),
     };
 
-    public static final Symbol[] ZERO_PAGE_COMMON_SYMS = {
+    private static final Symbol[] ZERO_PAGE_COMMON_SYMS = {
         new Symbol("Temp_Var1", 0x00),
         new Symbol("Temp_Var2", 0x01),
         new Symbol("Temp_Var3", 0x02),
@@ -129,17 +129,17 @@ public class SMB3Symbols {
         new Symbol("PPU_CTL1_Copy", 0xFF),
     };
 
-    public static final Symbol[] LOW_STACK_SYMS = {
+    private static final Symbol[] LOW_STACK_SYMS = {
         new Symbol("Update_Select", 0x100),
         new Symbol("Raster_Effect", 0x101),
         new Symbol("Debug_Flag", 0x160),
     };
 
-    public static final Symbol[] SPRITE_SYMS = {
+    private static final Symbol[] SPRITE_SYMS = {
         new Symbol("Sprite_RAM", 0x200),
     };
 
-    public static final Symbol[] RAM_SYMS = {
+    private static final Symbol[] RAM_SYMS = {
         new Symbol("Graphics_BufCnt", 0x300),
         new Symbol("Graphics_Buffer", 0x301), /* 0x301 - 0x36B */
         new Symbol("TileChng_VRAM_H", 0x36C),
@@ -221,5 +221,13 @@ public class SMB3Symbols {
         /* 0x650 unused */
         new Symbol("Objects_SprHVis", 0x651), /* 0x651 - 0x658 */
         new Symbol("Objects_SpawnIdx", 0x659), /* 0x659 - 0x660 */
+    };
+
+    public static final Symbol[][] SMB3_MANUAL_SYMS = {
+        IO_SYMS,
+        ZERO_PAGE_COMMON_SYMS,
+        LOW_STACK_SYMS,
+        SPRITE_SYMS,
+        RAM_SYMS,
     };
 }
