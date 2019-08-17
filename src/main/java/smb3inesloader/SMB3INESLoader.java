@@ -2,6 +2,8 @@ package inesloader;
 
 import inesloader.SMB3Symbols;
 import inesloader.SMB3Symbols.Symbol;
+import inesloader.SMB3Symbols.BankSymbol;
+import inesloader.SMB3AutoSymbols;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -147,6 +149,17 @@ public class SMB3INESLoader extends AbstractLibrarySupportLoader {
                 }
             }
         }
+        for (BankSymbol[] arr : SMB3AutoSymbols.SMB3_AUTO_SYMS) {
+            for (BankSymbol s :  arr) {
+                try {
+                    if (s.bank < 30) {
+                        api.createLabel(api.toAddr(String.format("bank%03d::0x%X", s.bank, s.addr)), s.name, true);
+                    } else {
+                        api.createLabel(api.toAddr(s.addr), s.name, true);
+                    }
+                } catch (Exception e) {
+                    Msg.error(this, e.getMessage());
+                }
             }
         }
     }

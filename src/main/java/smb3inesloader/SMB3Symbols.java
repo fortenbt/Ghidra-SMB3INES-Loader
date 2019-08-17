@@ -10,6 +10,17 @@ public class SMB3Symbols {
         }
     }
 
+    public static class BankSymbol {
+        String name;
+        int addr;
+        int bank;
+        public BankSymbol(String name, int bank, int addr) {
+            this.name = name;
+            this.bank = bank;
+            this.addr = addr;
+        }
+    }
+
     private static final Symbol[] IO_SYMS = {
         new Symbol("PPU_CTL1", 0x2000),
         new Symbol("PPU_CTL2", 0x2001),
